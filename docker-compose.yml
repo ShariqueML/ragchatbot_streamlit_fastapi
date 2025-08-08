@@ -2,20 +2,23 @@ version: '3.8'
 
 services:
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        limits:
-          memory: 16G
+      - ./start.sh:/start.sh  # Mount the startup script
+    entrypoint: ["/bin/sh", "/start.sh"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434"]
-      interval: 1m
-      timeout: 3s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    environment:
+      - OLLAMA_DEBUG=1
+    mem_limit: "16g"
+    cpus: 4
 
   backend:
     build:
@@ -23,12 +26,18 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - OLLAMA_HOST=ollama:11434
     depends_on:
       ollama:
         condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
     restart: unless-stopped
+    mem_limit: "2g"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
@@ -37,8 +46,10 @@ services:
     ports:
       - "8501:8501"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    mem_limit: "1g"
 
 volumes:
   ollama_data:
