@@ -81,7 +81,7 @@ class ConversationHistory(Base):
 my_model_name = "granite3.3"
 llm = ChatOllama(model=my_model_name)
 embeddings = HuggingFaceEmbeddings(
-    model_name="D:/Langgraph_Agent/Agents\chatbots/embeddingmodels/all-MiniLM-L12-v2",
+    model_name="intfloat/e5-base-v2",
     model_kwargs={'device': 'cpu'},
     encode_kwargs={'normalize_embeddings': False}
 )

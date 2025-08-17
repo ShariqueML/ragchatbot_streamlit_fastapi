@@ -2,23 +2,26 @@ version: '3.8'
 
 services:
   ollama:
-    image: ollama/ollama:0.11.3-rc0-rocm
+    build:
+      context: ./ollama_server  # Directory containing Dockerfile
+      dockerfile: Dockerfile
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
-      - ./start.sh:/start.sh  # Mount the startup script
-    entrypoint: ["/bin/sh", "/start.sh"]
+      - ollama_data:/root/.ollama_server  # Persists model registry between restarts
+    environment:
+      - OLLAMA_DEBUG=1  # Optional debug logging
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 16G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434"]
       interval: 10s
       timeout: 5s
-      retries: 10
+      retries: 5
     restart: unless-stopped
-    environment:
-      - OLLAMA_DEBUG=1
-    mem_limit: "16g"
-    cpus: 4
 
   backend:
     build:

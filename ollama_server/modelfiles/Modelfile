@@ -1,0 +1,1 @@
+FROM /root/.ollama/models/granite32b.gguf
