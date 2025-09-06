@@ -4,35 +4,66 @@ from typing import List, Optional, Dict, Any, TypedDict,Generic, TypeVar
 from abc import ABC
 import uuid
 import io
+import os
 import PyPDF2
 from docx import Document as dx
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
+from sentence_transformers import SentenceTransformer
 from langchain_ollama.chat_models import ChatOllama
+
+from fastapi.middleware.cors import CORSMiddleware
+from langchain_huggingface.llms.huggingface_endpoint import HuggingFaceEndpoint
+from langchain_community.llms import HuggingFaceHub
+
+from langchain_core.language_models.llms import BaseLLM
+from langchain_core.callbacks import CallbackManagerForLLMRun
+
 from langchain_core.prompts import PromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
+from langchain_core.outputs import Generation, LLMResult
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 # from sqlalchemy.ext.declarative import declarative_base
+import logging
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
 from enum import Enum as PyEnum
 from contextlib import asynccontextmanager
 import uvicorn
 from sqlalchemy.orm import DeclarativeBase
+import requests
+from dotenv import load_dotenv
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 # Define the FastAPI application
 app = FastAPI(
     title="Conversational RAG API",
     description="A backend for a Conversational RAG Chatbot using LangChain and LangGraph.",
     version="1.0.0"
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://sra25-conversation-chatbot.hf.space",
+        "http://localhost:8501"  # for local development
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 T = TypeVar("T")
 # --- 1. Database Setup ---
-DATABASE_URL = "sqlite:///database_telemetry.db"
+DATABASE_PATH = "/tmp/database_telemetry.db"
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -79,12 +110,26 @@ class ConversationHistory(Base):
 
 # --- 2. Initialize LLM and Embeddings ---
 my_model_name = "granite3.3:2b"
-llm = ChatOllama(model=my_model_name)
-embeddings = HuggingFaceEmbeddings(
-    model_name="intfloat/e5-base-v2",
-    model_kwargs={'device': 'cpu'},
-    encode_kwargs={'normalize_embeddings': False}
-)
+llm = ChatOllama(model=my_model_name,validate_model_on_init = True)
+
+# load_dotenv()
+
+# llm = get_hf_llm()
+model_loaded = False
+start = datetime.datetime.now()
+try:
+    embeddings = HuggingFaceEmbeddings(
+        model_name="intfloat/e5-base-v2",
+        model_kwargs={'device': 'cpu'},
+        encode_kwargs={'normalize_embeddings': False}
+    )
+    model_loaded = True
+    load_time = datetime.datetime.now() - start
+    print(f"✅ Model loaded in {load_time.total_seconds()}")
+
+except Exception as e:
+    print(f"❌ Model loading failed: {e}")
+
 
 # --- 3. LangGraph State and Workflow ---
 class GraphState(TypedDict):
@@ -251,6 +296,25 @@ class ConversationSummary(BaseModel):
     title: str
 
 # --- 6. FastAPI Endpoints ---
+
+@app.get("/")
+async def root():
+    return {"message": "FastAPI server is running"}
+
+
+@app.get("/health")
+async def health_check():
+    if model_loaded:
+        test_llm = llm.invoke("what is 2+2 ?")
+        print("Testing LLM response: ", test_llm)
+        return {"status":"healthy", "model_loaded":True}
+    else:
+        return {
+            "status": "loading",
+            "model_loaded":False,
+            "message":"Model is still downloading or failed to download"
+            }
+
 @app.post("/upload-documents")
 async def upload_documents(files: List[UploadFile] = File(...)):
     global vectorstore_retriever
