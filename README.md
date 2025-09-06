@@ -3,10 +3,10 @@
 ## Local Development
 
 1. Clone the repository
-2. Ensure Docker and Docker Compose are installed
-3. Run:
-```bash
-docker-compose up -d
+2. Ensure Ollama is installed
+3. Pull granite3.3:2b model
+4. Run:
+   open a terminal, type cd /backend, and run main.py
 
 4.Access:
 
