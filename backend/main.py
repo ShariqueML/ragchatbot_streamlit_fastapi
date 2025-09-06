@@ -78,7 +78,7 @@ class ConversationHistory(Base):
     last_updated = Column(DateTime, default=datetime.datetime.now)
 
 # --- 2. Initialize LLM and Embeddings ---
-my_model_name = "granite3.3"
+my_model_name = "granite3.3:2b"
 llm = ChatOllama(model=my_model_name)
 embeddings = HuggingFaceEmbeddings(
     model_name="intfloat/e5-base-v2",
