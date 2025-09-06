@@ -1,4 +1,4 @@
-# Streamlit + FastAPI + Ollama Application
+# Streamlit + FastAPI + Ollama Application + LangGraph
 
 ## Local Development
 
